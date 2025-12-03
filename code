@@ -1,0 +1,617 @@
+import React, { useState, useEffect } from 'react';
+import { Check, ArrowRight, Package, MapPin, RefreshCw, Trophy, ScanLine, HelpCircle, AlertCircle, ChevronLeft, Menu, Home, CornerDownLeft, Battery, Wifi, Signal, Hand, Info, Zap, Search, ArrowUp, Navigation, ShoppingCart, QrCode, Barcode } from 'lucide-react';
+
+/**
+ * WAREHOUSE MICRO-SIMULATION v9.2 (Location Labels Fix)
+ * -------------------------------------------------------
+ * Updates: 
+ * - Updated RackDetail to accept 'aisle' and 'rack' props.
+ * - Shelf stickers now display dynamic codes (e.g., A-2-U, T-1-P).
+ * - Updated all scenes using RackDetail to pass the correct location context.
+ */
+
+// --- 1. CONFIGURATION ---
+
+const PALETTE = {
+  P: { color: '#9C27B0', name: 'Purple', textClass: 'text-purple-600', bgClass: 'bg-purple-100', ringClass: 'ring-purple-500' },
+  Q: { color: '#00BCD4', name: 'Blue', textClass: 'text-cyan-500', bgClass: 'bg-cyan-100', ringClass: 'ring-cyan-500' },
+  R: { color: '#00BCD4', name: 'Blue', textClass: 'text-cyan-500', bgClass: 'bg-cyan-100', ringClass: 'ring-cyan-500' },
+  S: { color: '#FF9800', name: 'Orange', textClass: 'text-orange-500', bgClass: 'bg-orange-100', ringClass: 'ring-orange-500' },
+  T: { color: '#FF9800', name: 'Orange', textClass: 'text-orange-500', bgClass: 'bg-orange-100', ringClass: 'ring-orange-500' },
+  U: { color: '#00E676', name: 'Green', textClass: 'text-green-500', bgClass: 'bg-green-100', ringClass: 'ring-green-500' },
+  V: { color: '#00E676', name: 'Green', textClass: 'text-green-500', bgClass: 'bg-green-100', ringClass: 'ring-green-500' },
+  W: { color: '#FFEA00', name: 'Yellow', textClass: 'text-yellow-500', bgClass: 'bg-yellow-100', ringClass: 'ring-yellow-500' },
+  X: { color: '#FFEA00', name: 'Yellow', textClass: 'text-yellow-500', bgClass: 'bg-yellow-100', ringClass: 'ring-yellow-500' },
+  Y: { color: '#FF4081', name: 'Pink', textClass: 'text-pink-500', bgClass: 'bg-pink-100', ringClass: 'ring-pink-500' },
+  Z: { color: '#FF4081', name: 'Pink', textClass: 'text-pink-500', bgClass: 'bg-pink-100', ringClass: 'ring-pink-500' },
+  rackBlue: '#1e3a8a', 
+  rackMetal: '#e2e8f0', 
+  hhdDark: '#1a1f2c', 
+  hhdCard: '#ffffff',
+  accentOrange: '#f97316', 
+};
+
+const LEVELS = ['P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+
+// --- 2. ASSETS & COMPONENTS ---
+
+// Custom Icons
+const IconBarcode = ({ className }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M3 5v14"/><path d="M8 5v14"/><path d="M12 5v14"/><path d="M17 5v14"/><path d="M21 5v14"/>
+  </svg>
+);
+
+const IconQrCode = ({ className }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/>
+  </svg>
+);
+
+const ProductAsset = ({ type }) => {
+  switch(type) {
+    case 'Maggie':
+    case 'Noodles': 
+      return (
+        <svg viewBox="0 0 100 100" className="w-full h-full shadow-md rounded-md">
+          <rect width="100" height="100" fill="#FACC15" /> 
+          <circle cx="50" cy="50" r="35" fill="#DC2626" />
+          <text x="50" y="55" fontFamily="sans-serif" fontWeight="900" fontSize="22" textAnchor="middle" fill="white" transform="rotate(-5 50 50)" style={{fontStyle: 'italic'}}>Maggi</text>
+          <path d="M10 80 Q50 90 90 80" stroke="#CA8A04" strokeWidth="3" fill="none" />
+        </svg>
+      );
+    case 'Britannia':
+      return (
+        <svg viewBox="0 0 100 100" className="w-full h-full shadow-md rounded-md overflow-hidden">
+          <rect width="100" height="100" fill="#FACC15" />
+          <path d="M0 0 L100 0 L100 40 L0 60 Z" fill="#DC2626" /> 
+          <text x="50" y="35" fontFamily="sans-serif" fontWeight="900" fontSize="24" textAnchor="middle" fill="white" style={{fontStyle: 'italic'}}>50-50</text>
+          <text x="50" y="80" fontFamily="sans-serif" fontWeight="bold" fontSize="14" textAnchor="middle" fill="#B45309">Maska<br/>Chaska</text>
+        </svg>
+      );
+    case 'Kurkure':
+      return (
+        <svg viewBox="0 0 100 100" className="w-full h-full shadow-md rounded-md">
+          <rect width="100" height="100" fill="#F97316" />
+          <path d="M10 50 Q50 20 90 50" fill="none" stroke="#166534" strokeWidth="15" opacity="0.8"/>
+          <text x="50" y="55" fontFamily="sans-serif" fontWeight="900" fontSize="18" textAnchor="middle" fill="white" stroke="#DC2626" strokeWidth="1">Kurkure</text>
+          <text x="50" y="75" fontFamily="sans-serif" fontWeight="bold" fontSize="8" textAnchor="middle" fill="#78350F">Masala Munch</text>
+        </svg>
+      );
+    case 'Cadbury':
+      return (
+        <svg viewBox="0 0 100 100" className="w-full h-full shadow-md rounded-md">
+          <rect width="100" height="100" fill="#4C1D95" />
+          <path d="M10 30 Q50 10 90 30" fill="none" stroke="#FCD34D" strokeWidth="2" />
+          <text x="50" y="55" fontFamily="serif" fontWeight="bold" fontSize="18" textAnchor="middle" fill="white">Dairy<br/>Milk</text>
+          <path d="M20 70 L30 85 L40 70" fill="#FCD34D" />
+        </svg>
+      );
+    case 'Lays':
+      return (
+        <svg viewBox="0 0 100 100" className="w-full h-full shadow-md rounded-md">
+          <rect width="100" height="100" fill="#FDE047" />
+          <circle cx="50" cy="50" r="30" fill="#DC2626" stroke="white" strokeWidth="2"/>
+          <text x="50" y="55" fontFamily="sans-serif" fontWeight="900" fontSize="20" textAnchor="middle" fill="white" transform="rotate(-10 50 50)">Lays</text>
+          <path d="M0 0 L100 100" stroke="white" strokeWidth="20" opacity="0.1"/>
+        </svg>
+      );
+    case 'Soap':
+      return (
+        <svg viewBox="0 0 100 100" className="w-full h-full shadow-md rounded-md">
+          <rect width="100" height="100" fill="#10B981" />
+          <circle cx="50" cy="50" r="25" fill="white" opacity="0.9" />
+          <path d="M40 40 L50 60 L60 40" stroke="#059669" strokeWidth="3" fill="none" />
+          <text x="50" y="85" fontFamily="sans-serif" fontWeight="bold" fontSize="10" textAnchor="middle" fill="white">Dettol</text>
+        </svg>
+      );
+    case 'Sauce':
+    case 'Jam': 
+      return (
+        <svg viewBox="0 0 100 100" className="w-full h-full shadow-md rounded-md">
+          <rect width="100" height="100" fill="#EF4444" />
+          <rect x="20" y="15" width="60" height="40" fill="white" rx="5" />
+          <text x="50" y="40" fontFamily="sans-serif" fontWeight="bold" fontSize="14" textAnchor="middle" fill="#EF4444">Kissan</text>
+          <text x="50" y="80" fontFamily="sans-serif" fontWeight="bold" fontSize="12" textAnchor="middle" fill="white">JAM</text>
+        </svg>
+      );
+    case 'Oreo':
+      return (
+        <svg viewBox="0 0 100 100" className="w-full h-full shadow-md rounded-md">
+          <rect width="100" height="100" fill="#1e3a8a" /> 
+          <circle cx="30" cy="30" r="15" fill="#3f3f46" stroke="white" strokeWidth="1"/>
+          <circle cx="50" cy="70" r="15" fill="#3f3f46" stroke="white" strokeWidth="1"/>
+          <circle cx="70" cy="30" r="15" fill="#3f3f46" stroke="white" strokeWidth="1"/>
+          <text x="50" y="55" fontFamily="sans-serif" fontWeight="900" fontSize="20" textAnchor="middle" fill="white" stroke="#1e3a8a" strokeWidth="1" style={{fontStyle: 'italic'}}>OREO</text>
+        </svg>
+      );
+    default:
+      return <div className="w-full h-full bg-gray-200" />;
+  }
+};
+
+const Button = ({ onClick, children, className = "", disabled = false, variant = 'primary' }) => {
+  const baseStyle = "px-6 py-3 rounded-full font-bold shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wide text-sm z-50 relative";
+  const variants = {
+    primary: "bg-blue-700 hover:bg-blue-800 text-white border-b-4 border-blue-900",
+    secondary: "bg-slate-200 hover:bg-slate-300 text-slate-800",
+    success: "bg-green-600 hover:bg-green-700 text-white border-b-4 border-green-800",
+  };
+  
+  return (
+    <button onClick={onClick} disabled={disabled} className={`${baseStyle} ${disabled ? 'bg-gray-400 opacity-50' : variants[variant]} ${className}`}>
+      {children}
+    </button>
+  );
+};
+
+// HHD Component
+const HHD = ({ 
+  screenContent, 
+  showSticker = true, 
+  className = "", 
+  isSelected = false, 
+  onScan, 
+  shadow = true,
+  onLegendClick,
+  activeLegendLetter 
+}) => (
+  <div className={`
+    relative w-72 h-[520px] bg-gray-900 rounded-[2.5rem] flex flex-col overflow-hidden mx-auto transition-all duration-300 border-4 border-gray-800 flex-shrink-0
+    ${isSelected ? 'ring-4 ring-blue-500 scale-105' : ''}
+    ${shadow ? 'shadow-2xl' : ''}
+    ${className}
+  `}>
+    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-gray-800 rounded-b-xl z-30 flex items-center justify-center gap-3">
+       <div className="w-10 h-1 bg-gray-900 rounded-full opacity-50"></div>
+       <div className="w-1.5 h-1.5 rounded-full bg-blue-900/50"></div>
+    </div>
+    <div className="absolute -left-1 top-24 w-1 h-16 bg-yellow-500 rounded-l-md border-r border-gray-900"></div>
+    <div className="absolute -right-1 top-24 w-1 h-16 bg-yellow-500 rounded-r-md border-l border-gray-900"></div>
+
+    <div className={`h-9 w-full flex border-b border-gray-900 z-20 mt-6 relative ${showSticker ? 'bg-white' : 'bg-gray-800'}`}>
+      {showSticker ? (
+        LEVELS.map((L) => {
+           const isActive = activeLegendLetter === L;
+           return (
+            <div 
+              key={L}
+              onClick={() => onLegendClick && onLegendClick(L)}
+              className={`
+                flex-1 flex items-center justify-center text-[9px] font-black text-white leading-none border-r border-white/10 cursor-pointer transition-all
+                ${onLegendClick ? 'hover:opacity-80 active:scale-95' : ''}
+                ${isActive ? 'ring-2 ring-white z-10 scale-110 shadow-lg brightness-125' : ''}
+              `}
+              style={{ backgroundColor: PALETTE[L].color }}
+            >
+              {L}
+            </div>
+           );
+        })
+      ) : null}
+    </div>
+    
+    <div className="flex-1 bg-slate-900 text-white flex flex-col relative font-sans overflow-hidden">
+       <div className="h-5 bg-black/40 flex justify-between items-center px-4 text-[10px] font-medium text-gray-300 z-10">
+         <span>4:40 pm</span>
+         <div className="flex gap-1 items-center"><Wifi size={10} /><Battery size={10} /></div>
+       </div>
+       <div className="flex-1 relative overflow-y-auto flex flex-col">
+         {screenContent}
+       </div>
+    </div>
+
+    <div className="h-12 bg-gray-900 flex items-center justify-around px-8 z-30 border-t border-gray-800">
+       <Menu className="text-gray-500" size={18} /><Home className="text-gray-500" size={18} /><CornerDownLeft className="text-gray-500" size={18} />
+    </div>
+
+    <button onClick={onScan} className="absolute bottom-16 right-4 w-12 h-12 rounded-full bg-yellow-500 shadow-lg flex items-center justify-center z-40 border-2 border-yellow-300 active:scale-95 transition-transform hover:bg-yellow-400">
+      <ScanLine size={20} className="text-black" />
+    </button>
+  </div>
+);
+
+// High-Fidelity Rack Component
+// UPDATED: Accepts 'aisle' and 'rack' props to render dynamic location codes
+const RackDetail = ({ onShelfClick, pulseLevel, correctLevel, aisle = 'X', rack = 'X' }) => {
+  return (
+    <div className="relative w-64 h-[500px] flex flex-col mx-auto perspective-1000">
+      <div className="absolute left-0 top-0 bottom-0 w-4 bg-blue-900 z-20 shadow-lg flex flex-col justify-around py-2">
+         {[...Array(12)].map((_,i) => <div key={i} className="w-2 h-2 rounded-full bg-black/30 mx-auto"/>)}
+      </div>
+      <div className="absolute right-0 top-0 bottom-0 w-4 bg-blue-900 z-20 shadow-lg flex flex-col justify-around py-2">
+         {[...Array(12)].map((_,i) => <div key={i} className="w-2 h-2 rounded-full bg-black/30 mx-auto"/>)}
+      </div>
+
+      <div className="flex flex-col h-full justify-between py-4 px-4 bg-slate-100 border-x border-slate-300">
+        {LEVELS.map((level) => {
+           const color = PALETTE[level].color;
+           const isPulsing = pulseLevel === level;
+           const isCorrect = correctLevel === level;
+           
+           return (
+             <div 
+               key={level}
+               onClick={() => onShelfClick && onShelfClick(level)}
+               className={`
+                 relative w-full h-8 bg-gray-200 border-b-4 border-gray-400 shadow-sm cursor-pointer transition-all duration-300 group
+                 ${isPulsing ? 'animate-pulse ring-2 ring-purple-400 z-10' : ''}
+                 ${isCorrect ? 'ring-4 ring-green-500 scale-105 z-20' : 'hover:scale-105 hover:z-10'}
+               `}
+             >
+               <div className="absolute bottom-1 left-4 w-8 h-5 bg-slate-400/50 rounded-sm"></div>
+               <div className="absolute bottom-1 right-4 w-6 h-6 bg-slate-400/50 rounded-sm"></div>
+               <div className="absolute -bottom-1 left-0 right-0 h-2.5 shadow-sm flex items-center justify-center" style={{ backgroundColor: color }}>
+                  <div className="bg-white border-[0.5px] border-gray-300 px-1 flex items-center gap-1 shadow-sm h-[130%] -translate-y-[10%] scale-75 md:scale-90 origin-center">
+                     {/* UPDATED: Dynamic Location Code */}
+                     <span className="text-[5px] font-bold text-black font-mono leading-none whitespace-nowrap">{aisle}-{rack}-{level}</span>
+                     <IconQrCode className="text-black fill-current w-2 h-2" />
+                  </div>
+               </div>
+             </div>
+           );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// Realistic Aisle Perspective Component
+const AislePerspective = ({ id, label, isTarget, onClick }) => {
+  return (
+    <div 
+      onClick={onClick}
+      className={`
+        flex-1 h-80 relative cursor-pointer overflow-hidden group transition-all duration-500 rounded-xl shadow-2xl border-4 border-white
+        ${isTarget ? 'hover:flex-[1.2]' : 'hover:flex-[0.9] opacity-90'}
+      `}
+    >
+      <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-400"></div>
+      <div className="absolute top-0 bottom-0 left-0 w-12 bg-[#1e3a8a] transform skew-y-12 origin-top-left shadow-2xl border-r border-blue-900/50">
+         {[...Array(8)].map((_, i) => <div key={i} className="absolute w-full h-1 bg-black/20" style={{top: `${i * 12 + 10}%`}}></div>)}
+      </div>
+      <div className="absolute top-0 bottom-0 right-0 w-12 bg-[#1e3a8a] transform -skew-y-12 origin-top-right shadow-2xl border-l border-blue-900/50">
+         {[...Array(8)].map((_, i) => <div key={i} className="absolute w-full h-1 bg-black/20" style={{top: `${i * 12 + 10}%`}}></div>)}
+      </div>
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center group-hover:translate-y-2 transition-transform">
+         <div className="w-1 h-8 bg-gray-400"></div>
+         <div className="bg-white border-4 border-blue-800 text-blue-900 font-black text-6xl px-6 py-2 rounded-lg shadow-xl">{label}</div>
+      </div>
+      <div className="absolute inset-0 bg-gradient-to-t from-transparent via-transparent to-black/60 pointer-events-none"></div>
+      <div className="absolute bottom-0 w-full text-center text-white/50 text-sm font-mono mb-4 opacity-0 group-hover:opacity-100 transition-opacity">TAP TO ENTER</div>
+    </div>
+  );
+};
+
+// --- SCENE: Device Select ---
+const SceneDeviceSelect = ({ onNext }) => {
+  const [selected, setSelected] = useState(null);
+  const [feedback, setFeedback] = useState(null);
+
+  const handleSelect = (type) => {
+    setSelected(type);
+    if (type === 'std') {
+      setFeedback({ type: 'error', msg: 'Try again! Look for the colour-coded sticker.' });
+    } else {
+      setFeedback({ type: 'success', msg: 'Correct! Only use colour-coded devices.' });
+    }
+  };
+
+  return (
+    <div className="relative flex flex-col h-full w-full overflow-hidden bg-slate-100">
+      <div className="bg-white p-6 shadow-sm z-10 relative text-center flex justify-center items-center">
+        <div className="max-w-xl">
+          <h2 className="text-2xl font-bold text-slate-800 mb-1">Station 1: Equipment Check</h2>
+          <p className="text-slate-600 font-medium">Pick the correct HHD device.</p>
+        </div>
+        <div className="absolute right-6 top-6 hidden md:block bg-blue-50 px-3 py-1 rounded text-xs font-bold text-blue-700">FRAME 1</div>
+      </div>
+      <div className="flex-1 relative flex items-center justify-center perspective-1000">
+        <div className="absolute bottom-0 w-full h-[40%] bg-[#cbd5e1] border-t-8 border-[#94a3b8] shadow-inner z-0"></div>
+        <div className="flex gap-8 md:gap-20 items-end z-10 mb-10 scale-90 md:scale-100">
+          <div onClick={() => handleSelect('std')} className={`cursor-pointer transition-transform duration-300 transform ${selected === 'std' ? 'scale-105 -translate-y-4' : 'hover:-translate-y-2'}`}>
+            <HHD showSticker={false} isSelected={selected === 'std'} screenContent={<div className="flex h-full flex-col items-center justify-center text-gray-500 font-mono gap-2"><ScanLine size={24} className="opacity-50"/><span className="text-xs opacity-50 tracking-widest">SYSTEM READY</span></div>} />
+            <div className="mt-4 text-center font-bold text-slate-500 text-sm bg-white/50 py-1 rounded-full backdrop-blur-sm">DEVICE A</div>
+          </div>
+          <div onClick={() => handleSelect('colored')} className={`cursor-pointer transition-transform duration-300 transform ${selected === 'colored' ? 'scale-105 -translate-y-4' : 'hover:-translate-y-2'}`}>
+            <HHD showSticker={true} isSelected={selected === 'colored'} screenContent={<div className="flex h-full flex-col items-center justify-center text-gray-500 font-mono gap-2"><ScanLine size={24} className="opacity-50"/><span className="text-xs opacity-50 tracking-widest">SYSTEM READY</span></div>} />
+             <div className="mt-4 text-center font-bold text-slate-500 text-sm bg-white/50 py-1 rounded-full backdrop-blur-sm">DEVICE B</div>
+          </div>
+        </div>
+      </div>
+      <div className="bg-white border-t border-slate-200 p-6 z-30 min-h-[120px]">
+        <div className="max-w-2xl mx-auto flex items-center justify-between">
+          <div className="flex-1">{feedback ? <div className={`flex items-center gap-3 animate-fade-in ${feedback.type === 'success' ? 'text-green-700' : 'text-red-600'}`}>{feedback.type === 'success' ? <Check size={24} className="bg-green-100 p-1 rounded-full" /> : <AlertCircle size={24} className="bg-red-100 p-1 rounded-full" />}<span className="font-bold text-lg">{feedback.msg}</span></div> : <div className="text-slate-400 italic">Select a device...</div>}</div>
+          <Button onClick={onNext} disabled={selected !== 'colored'} className={feedback?.type === 'success' ? 'animate-pulse' : ''}>CONFIRM PICK <ArrowRight size={16} /></Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- SCENE: Legend Training ---
+const SceneLegendMatching = ({ onNext }) => {
+  const [taskIndex, setTaskIndex] = useState(0); 
+  const [feedback, setFeedback] = useState(null);
+  const TASKS = [{ id: 0, letter: 'P', colorName: 'Purple', type: 'Britannia' }, { id: 1, letter: 'U', colorName: 'Green', type: 'Lays' }];
+  const currentTask = TASKS[taskIndex];
+
+  const handleLegendClick = (letter) => {
+    if (letter === currentTask.letter) {
+      setFeedback('success');
+      setTimeout(() => {
+        if (taskIndex < TASKS.length - 1) { setFeedback(null); setTaskIndex(prev => prev + 1); } else { onNext(); }
+      }, 2000);
+    } else {
+      setFeedback('error');
+      setTimeout(() => setFeedback(null), 2000);
+    }
+  };
+
+  return (
+    <div className="relative flex flex-col h-full w-full overflow-hidden bg-slate-100">
+      <div className="bg-white p-6 shadow-sm z-10 relative text-center flex justify-center items-center">
+        <h2 className="text-2xl font-bold text-slate-800">Station 2: Legend Training</h2>
+        <div className="absolute right-6 top-6 hidden md:block bg-orange-50 px-3 py-1 rounded text-xs font-bold text-orange-700">FRAME 2</div>
+      </div>
+      <div className="flex-1 flex items-center justify-center p-4">
+        <HHD showSticker={true} isSelected={true} onLegendClick={handleLegendClick} screenContent={
+            <div className="flex flex-col h-full bg-[#1a1f2c] font-sans">
+               <div className="px-4 py-3 border-b border-gray-700"><div className="text-[10px] text-gray-400">Order #2202719</div></div>
+               <div className="p-4 flex-1">
+                 <div className="bg-white rounded-xl p-4 shadow-lg animate-slide-up">
+                    <div className="flex gap-4"><div className="w-16 h-16 flex-shrink-0"><ProductAsset type={currentTask.type} /></div><div className="flex-1"><div className="text-xs text-gray-500 font-bold">PICK ITEM</div><div className="text-lg font-bold text-slate-900">Task {taskIndex + 1}</div></div></div>
+                    <div className="mt-6 border-t border-gray-100 pt-4"><div className="text-xs text-gray-500 font-bold uppercase">Location</div><div className="flex items-center gap-2 text-3xl font-mono font-black text-slate-800"><span>T-1-</span><span className={`px-2 rounded ${feedback === 'success' ? `bg-${currentTask.colorName.toLowerCase()}-100 text-${currentTask.colorName.toLowerCase()}-700` : 'bg-gray-200 text-slate-900 animate-pulse'}`}>{currentTask.letter}</span></div></div>
+                 </div>
+                 <div className="mt-8 flex items-start gap-3 opacity-80"><Hand className="text-white animate-bounce mt-1" size={24} /><div className="text-white text-sm"><span className="font-bold text-yellow-400">Action:</span> Tap the matching colour block.</div></div>
+               </div>
+            </div>
+          }
+        />
+      </div>
+      <div className="bg-white border-t border-slate-200 p-6 z-30 min-h-[120px]"><div className="max-w-2xl mx-auto text-center">{feedback === 'success' ? <div className="text-green-700 font-bold text-xl flex items-center justify-center gap-2"><Check size={28}/> Correct!</div> : feedback === 'error' ? <div className="text-red-600 font-bold text-xl flex items-center justify-center gap-2"><AlertCircle size={28}/> Try again.</div> : <p className="text-slate-400 italic">Match the letter.</p>}</div></div>
+    </div>
+  );
+};
+
+// --- SCENE 5: Shelf ID ---
+const SceneShelfIdentification = ({ onNext }) => {
+  const [feedback, setFeedback] = useState(null);
+  const [attempts, setAttempts] = useState(0);
+
+  const handleShelfClick = (level) => {
+    if (level === 'P') {
+      setFeedback({ type: 'success', msg: 'Correct! P corresponds to the Purple shelf.' });
+      setTimeout(onNext, 2500);
+    } else {
+      setAttempts(a => a + 1);
+      setFeedback({ type: 'error', msg: `That's ${PALETTE[level].name} (Level ${level}). Look for P/Purple.` });
+    }
+  };
+
+  return (
+    <div className="relative flex flex-col h-full w-full overflow-hidden bg-slate-100">
+      <div className="bg-white p-6 shadow-sm z-10 relative text-center flex justify-center items-center">
+        <div className="max-w-xl">
+          <h2 className="text-2xl font-bold text-slate-800 mb-1">Station 5: Shelf Identification</h2>
+          <p className="text-slate-600 font-medium">Locate the correct shelf level within the rack.</p>
+        </div>
+        <div className="absolute right-6 top-6 hidden md:block bg-purple-50 px-3 py-1 rounded text-xs font-bold text-purple-700">FRAME 5 / 6</div>
+      </div>
+      <div className="flex-1 relative flex flex-row items-center justify-center p-4 pb-24 gap-8 bg-slate-200">
+         <div className="scale-90 md:scale-100 origin-center flex-shrink-0">
+          <HHD showSticker={true} isSelected={true} screenContent={
+              <div className="flex flex-col h-full bg-[#1a1f2c] font-sans p-4">
+                 <div className="text-white mb-6">
+                    <div className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">CURRENT PICK</div>
+                    <div className="text-xl font-bold leading-tight">Britannia 50-50</div>
+                 </div>
+                 <div className="bg-slate-800 p-4 rounded-lg border border-slate-600 text-center">
+                    <div className="text-xs text-gray-400 mb-1">LOCATION</div>
+                    <div className="text-3xl font-mono font-black text-white tracking-widest">T-1-<span className="text-purple-400">P</span></div>
+                 </div>
+              </div>
+            }
+          />
+        </div>
+        <div className="scale-90 md:scale-100 origin-center">
+           {/* UPDATED: Pass aisle 'T' and rack '1' for static Scene 5 */}
+           <RackDetail onShelfClick={handleShelfClick} pulseLevel="P" correctLevel={feedback?.type === 'success' ? 'P' : null} aisle="T" rack="1" />
+        </div>
+      </div>
+      <div className="bg-white border-t border-slate-200 p-6 z-30 min-h-[120px]">
+        <div className="max-w-2xl mx-auto text-center">
+           {feedback && (<div className={`animate-fade-in text-xl font-bold flex items-center justify-center gap-2 ${feedback.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>{feedback.type === 'success' ? <Check/> : <AlertCircle/>}{feedback.msg}</div>)}
+           {!feedback && attempts === 0 && (<p className="text-slate-400 italic">Select the shelf that matches the location code P.</p>)}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- SCENE 6 (Revised): Multi-Item Practice Loop ---
+
+const ScenePracticeLoop = ({ onFinish }) => {
+  // Practice Data
+  const PRACTICE_TASKS = [
+    { id: 1, name: 'Britannia 50-50 Maska Chaska', code: 'T-1-P', aisle: 'T', rack: 1, shelf: 'P', type: 'Britannia' },
+    { id: 2, name: 'Lays Chips', code: 'A-2-U', aisle: 'A', rack: 2, shelf: 'U', type: 'Lays' },
+    { id: 3, name: 'Kissan Jam', code: 'R-3-S', aisle: 'R', rack: 3, shelf: 'S', type: 'Jam' },
+    { id: 4, name: 'Maggie Noodles', code: 'B-1-Y', aisle: 'B', rack: 1, shelf: 'Y', type: 'Maggie' },
+    { id: 5, name: 'Oreo Cookies', code: 'D-4-Q', aisle: 'D', rack: 4, shelf: 'Q', type: 'Oreo' },
+  ];
+
+  // Distractors
+  const DISTRACTORS = ['Soap', 'Sauce', 'Kurkure'];
+
+  const [taskIdx, setTaskIdx] = useState(0);
+  const [step, setStep] = useState('aisle'); // aisle -> rack -> shelf -> pick
+  const [feedback, setFeedback] = useState(null);
+  
+  const currentTask = PRACTICE_TASKS[taskIdx];
+
+  // Handlers
+  const handleAisleSelect = (aisle) => {
+    if (aisle === currentTask.aisle) {
+      setFeedback({ type: 'success', msg: `Correct! Entered Aisle ${aisle}.` });
+      setTimeout(() => { setStep('rack'); setFeedback(null); }, 1000);
+    } else {
+      setFeedback({ type: 'error', msg: `Wrong Aisle. Look at the code: ${currentTask.code}` });
+    }
+  };
+
+  const handleRackSelect = (rack) => {
+    if (rack === currentTask.rack) {
+      setFeedback({ type: 'success', msg: `Correct! At Rack ${rack}.` });
+      setTimeout(() => { setStep('shelf'); setFeedback(null); }, 1000);
+    } else {
+      setFeedback({ type: 'error', msg: `Wrong Rack. Check the code: ${currentTask.code}` });
+    }
+  };
+
+  const handleShelfSelect = (level) => {
+    if (level === currentTask.shelf) {
+      setFeedback({ type: 'success', msg: `Correct! ${level} is the ${PALETTE[level].name} shelf.` });
+      setTimeout(() => { setStep('pick'); setFeedback(null); }, 1000);
+    } else {
+      setFeedback({ type: 'error', msg: 'Wrong Shelf. Match the last letter to the legend.' });
+    }
+  };
+
+  const handleItemSelect = (item) => {
+    if (item.isTarget) {
+      setFeedback({ type: 'success', msg: `Picked ${currentTask.name}!` });
+      setTimeout(() => {
+        if (taskIdx < PRACTICE_TASKS.length - 1) {
+          setTaskIdx(prev => prev + 1);
+          setStep('aisle');
+          setFeedback(null);
+        } else {
+          onFinish();
+        }
+      }, 1500);
+    } else {
+      setFeedback({ type: 'error', msg: 'Wrong Item. Check the image.' });
+    }
+  };
+
+  const getShelfItems = () => {
+    const items = [
+      { id: 'target', type: currentTask.type, isTarget: true },
+      { id: 'd1', type: DISTRACTORS[0], isTarget: false },
+      { id: 'd2', type: DISTRACTORS[1], isTarget: false },
+      { id: 'd3', type: DISTRACTORS[2], isTarget: false },
+    ];
+    return items.sort(() => Math.random() - 0.5); 
+  };
+
+  const renderContent = () => {
+    switch (step) {
+      case 'aisle':
+        const targetAisle = currentTask.aisle;
+        const distractorAisle = String.fromCharCode(targetAisle.charCodeAt(0) + 1); 
+        return (
+          <div className="flex gap-4 w-full h-full justify-center items-center px-4 animate-fade-in">
+             <AislePerspective id="d" label={distractorAisle} isTarget={false} onClick={() => handleAisleSelect(distractorAisle)} />
+             <AislePerspective id="t" label={targetAisle} isTarget={true} onClick={() => handleAisleSelect(targetAisle)} />
+          </div>
+        );
+      case 'rack':
+        return (
+          <div className="flex gap-4 items-end justify-center w-full max-w-4xl h-64 animate-slide-up">
+             {[1, 2, 3, 4].map((r) => (
+               <div key={r} onClick={() => handleRackSelect(r)} className="bg-slate-300 w-24 h-full border-4 border-blue-900 flex items-center justify-center text-2xl font-bold text-blue-900 cursor-pointer hover:bg-white shadow-xl">
+                 {r}
+               </div>
+             ))}
+          </div>
+        );
+      case 'shelf':
+        return (
+          <div className="scale-90 md:scale-100 origin-bottom animate-slide-up">
+             {/* UPDATED: Pass current aisle and rack to RackDetail for dynamic QR codes */}
+             <RackDetail onShelfClick={handleShelfSelect} correctLevel={feedback?.type === 'success' ? currentTask.shelf : null} aisle={currentTask.aisle} rack={currentTask.rack} />
+          </div>
+        );
+      case 'pick':
+        return (
+          <div className="flex gap-4 justify-center items-end h-64 w-full bg-slate-800 p-4 rounded-xl shadow-inner border-b-8 border-purple-600 animate-slide-up">
+             {getShelfItems().map((item, i) => (
+               <div key={i} onClick={() => handleItemSelect(item)} className="w-20 h-24 cursor-pointer hover:scale-110 transition-transform bg-slate-700/50 rounded p-1">
+                 <ProductAsset type={item.type} />
+               </div>
+             ))}
+          </div>
+        );
+      default: return null;
+    }
+  };
+
+  return (
+    <div className="relative flex flex-col h-full w-full overflow-hidden bg-slate-100">
+      <div className="bg-white p-4 shadow-sm z-10 flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">Practice Mode</h2>
+          <p className="text-slate-600 text-sm">{step === 'aisle' ? 'Navigate to Aisle' : step === 'rack' ? 'Select Rack' : step === 'shelf' ? 'Select Shelf Color' : 'Pick Item'}</p>
+        </div>
+        <div className="bg-blue-100 px-3 py-1 rounded text-blue-800 font-bold text-sm">Task {taskIdx + 1} / {PRACTICE_TASKS.length}</div>
+      </div>
+      {/* UPDATED LAYOUT: Force flex-row to keep HHD visible on left */}
+      <div className="flex-1 relative flex flex-row items-center justify-center p-4 pb-24 gap-4 bg-slate-200 overflow-hidden">
+        <div className="scale-90 md:scale-100 origin-center flex-shrink-0">
+          <HHD showSticker={true} isSelected={true} screenContent={
+              <div className="flex flex-col h-full bg-[#1a1f2c] font-sans p-4">
+                 <div className="text-white mb-6">
+                    <div className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">CURRENT ORDER</div>
+                    <div className="text-xl font-bold leading-tight">{currentTask.name}</div>
+                 </div>
+                 <div className="bg-slate-800 p-4 rounded-lg border border-slate-600 text-center">
+                    <div className="text-xs text-gray-400 mb-1">LOCATION</div>
+                    <div className="text-3xl font-mono font-black text-white tracking-widest">{currentTask.code}</div>
+                 </div>
+                 <div className="mt-8 flex items-center gap-3 text-xs text-gray-400"><Info size={16} /><span>Navigate &gt; Identify &gt; Pick</span></div>
+              </div>
+            }
+          />
+        </div>
+        <div className="flex-1 flex items-center justify-center relative h-full">{renderContent()}</div>
+      </div>
+      <div className="absolute bottom-0 w-full bg-white border-t border-slate-200 p-4 min-h-[80px] flex items-center justify-center z-50">
+         {feedback ? (
+           <div className={`text-lg font-bold flex items-center gap-2 animate-bounce ${feedback.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>{feedback.type === 'success' ? <Check /> : <AlertCircle />}{feedback.msg}</div>
+         ) : (<div className="text-slate-400 italic text-sm">Follow the location code on the HHD to complete the pick.</div>)}
+      </div>
+    </div>
+  );
+};
+
+// Placeholder for Completion
+const ScenePlaceholder = ({ onRestart }) => (
+  <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-slate-50">
+    <div className="bg-white p-12 rounded-3xl shadow-xl flex flex-col items-center max-w-lg">
+      <div className="w-24 h-24 bg-yellow-100 rounded-full flex items-center justify-center mb-6 shadow-inner"><Trophy size={48} className="text-yellow-600" /></div>
+      <h2 className="text-4xl font-black text-slate-800 mb-4">Master Picker!</h2>
+      <p className="text-slate-600 mb-8 text-lg">You have successfully completed the practice run with 100% accuracy.</p>
+      <Button onClick={onRestart} variant="secondary"><RefreshCw size={16} /> Restart Training</Button>
+    </div>
+  </div>
+);
+
+// --- MAIN CONTROLLER ---
+
+export default function App() {
+  const [scene, setScene] = useState('frame1'); 
+
+  return (
+    <div className="min-h-screen bg-slate-200 font-sans text-slate-900 p-4 flex items-center justify-center">
+      <div className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl overflow-hidden h-[850px] border border-slate-300 relative">
+        {scene === 'frame1' && <SceneDeviceSelect onNext={() => setScene('frame2')} />}
+        {scene === 'frame2' && <SceneLegendMatching onNext={() => setScene('frame6')} />}
+        {scene === 'frame6' && <ScenePracticeLoop onFinish={() => setScene('final')} />}
+        {scene === 'final' && <ScenePlaceholder onRestart={() => setScene('frame1')} />}
+      </div>
+    </div>
+  );
+}
+
+
